@@ -32,7 +32,7 @@ function AccuracyView({ acc }: { acc: Accuracy }) {
   const o = acc.overall;
   const insights = accuracyInsights(acc);
   const histogram = acc.errorHistogram.map((b) => ({ ...b, mid: (b.lower + b.upper) / 2 }));
-  const maxMw = Math.max(1, ...acc.scatter.flatMap((p) => [p.forecast, p.actual]));
+  const maxMw = Math.ceil(Math.max(1, ...acc.scatter.flatMap((p) => [p.forecast, p.actual])) / 5000) * 5000;
 
   return (
     <>
