@@ -11,7 +11,7 @@ A web app for a UK energy supplier's day-ahead trading team. It answers two ques
 Data: Elexon BMRS national wind **outturn** ([FUELHH], `fuelType = WIND`, half-hourly) and wind
 **forecasts** ([WINDFOR], hourly, with `publishTime`). No other data is used.
 
-**Live app:** _add the Heroku URL here after deploying (see [Deploy](#deploy-to-heroku))._
+**Live app:** _add the Vercel URL here after deploying (see [Deploy](#deploy))._
 
 [FUELHH]: https://bmrs.elexon.co.uk/api-documentation/endpoint/datasets/FUELHH/stream
 [WINDFOR]: https://bmrs.elexon.co.uk/api-documentation/endpoint/datasets/WINDFOR/stream
@@ -106,6 +106,9 @@ shows how much accuracy is gained by deciding later.
 ├── Dockerfile                  Multi-stage: build React, then a slim Python runtime serving both
 ├── docker-compose.yml          Local run of the production image (persists the data snapshot)
 ├── heroku.yml                  Heroku container-stack build
+├── vercel.json, api/index.py   Vercel: static React build + FastAPI as a Python function
+├── requirements.txt            Python deps for the Vercel function (points at backend/)
+├── docs/VIDEO_SCRIPT.md        Script and shot list for the demo video
 ├── Makefile                    Common dev commands
 └── .github/workflows/ci.yml    Lint, tests, frontend build, Docker build
 ```
@@ -113,7 +116,8 @@ shows how much accuracy is gained by deciding later.
 ### Design notes
 
 - **One deployable.** FastAPI serves `/api/*` and the static React build on all other paths,
-  so a single container runs on Heroku with no CORS or second service.
+  so a single container runs on Heroku with no CORS or second service. On Vercel the same
+  app runs as a serverless function behind the static build.
 - **Pure core, thin edges.** `analysis.py` has no I/O and works on plain datetimes and floats,
   so it is unit-tested directly. `ForecastIndex` stores the vintages for each target, sorted by
   publish time, so "latest forecast as of *x*" is a binary search.
@@ -175,12 +179,31 @@ Interactive OpenAPI docs are at `/docs`.
 
 ---
 
-## Deploy to Heroku
+## Deploy
+
+### Step 0: bundle the data snapshot (required for Vercel, recommended for Heroku)
+
+Serverless functions have a read-only filesystem and short time limits, so commit the data
+instead of fetching it on every cold start:
 
 ```bash
-# Optional but recommended: bundle the data so the dyno starts instantly
-make data && git add backend/data/*.json && git commit -m "Add Jan 2026 wind data snapshot"
+make install && make data      # writes backend/data/wind_actuals.json + wind_forecasts.json
+git add backend/data/*.json && git commit -m "Add Jan 2026 wind data snapshot" && git push
+```
 
+### Vercel
+
+`vercel.json` builds the React app as static files and runs FastAPI as a Python function
+(`api/index.py`). `/api/*`, `/docs` and `/openapi.json` go to the function; every other path
+serves the React app.
+
+- **Dashboard:** vercel.com → *Add New… → Project* → import this GitHub repo → *Deploy*. No
+  settings to change, because `vercel.json` sets everything.
+- **CLI:** `npm i -g vercel && vercel --prod` from the repo root.
+
+### Heroku (Docker)
+
+```bash
 heroku create <app-name>
 heroku stack:set container -a <app-name>
 git push heroku <branch>:main
